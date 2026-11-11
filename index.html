@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QR Attendance · Creative Technologies</title>
+<meta name="theme-color" content="#2f5d1e">
+<!--
+  QR CODE-BASED STUDENT ATTENDANCE MONITORING SYSTEM  ·  Web App (front end)
+  Paulba National High School · Creative Technologies
+
+  Host this single file on any HTTPS site (Netlify Drop / GitHub Pages).
+  It talks to your Google Apps Script "Web app" URL.
+  Paste that URL below OR the app will ask for it the first time it opens.
+-->
+<script>window.DEFAULT_API_URL = "";</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Spline+Sans:wght@400;500;600&family=Source+Code+Pro:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --leaf: oklch(0.545 0.141 127);
+  --leaf-deep: oklch(0.34 0.075 130);
+  --leaf-ink: oklch(0.26 0.05 130);
+  --leaf-wash: oklch(0.955 0.03 125);
+  --bg: oklch(0.985 0.006 110);
+  --card: oklch(0.998 0.002 110);
+  --text: oklch(0.27 0.02 124);
+  --muted: oklch(0.50 0.03 124);
+  --line: oklch(0.91 0.015 120);
+  --present: oklch(0.55 0.14 135);
+  --late: oklch(0.72 0.14 78);
+  --late-ink: oklch(0.50 0.11 65);
+  --absent: oklch(0.57 0.16 32);
+  --out: oklch(0.55 0.08 205);
+  --clay: oklch(0.536 0.111 61);
+  --r: 14px;
+  --font-display: "Quicksand", system-ui, sans-serif;
+  --font-sans: "Spline Sans", system-ui, sans-serif;
+  --font-mono: "Source Code Pro", ui-monospace, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--font-sans);font-size:16px;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--font-display);font-weight:700;margin:0;letter-spacing:-.01em}
+h1{font-size:30px} h2{font-size:22px} h3{font-size:17px}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--leaf-deep)}
+.mono{font-family:var(--font-mono)}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.hidden{display:none!important}
+
+/* ---------- shell ---------- */
+.shell{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+.side{background:var(--leaf-deep);color:oklch(0.95 0.02 120);padding:22px 14px;position:sticky;top:0;height:100vh;overflow:auto;display:flex;flex-direction:column;gap:4px}
+.brand{padding:4px 10px 18px}
+.brand b{display:block;font-family:var(--font-display);font-size:19px;line-height:1.15}
+.brand span{font-size:13px;opacity:.75}
+.nav{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:inherit;text-decoration:none;font-size:15px;opacity:.86;border:0;background:none;cursor:pointer;width:100%;text-align:left}
+.nav:hover{background:oklch(1 0 0 / .08);opacity:1}
+.nav.on{background:oklch(0.95 0.06 125);color:var(--leaf-ink);opacity:1;font-weight:600}
+.nav svg{width:19px;height:19px;flex:none}
+.nav .n{font-family:var(--font-mono);font-size:12px;opacity:.55;margin-left:auto}
+.side .who{margin-top:auto;padding:14px 12px 4px;border-top:1px solid oklch(1 0 0 / .14);font-size:14px}
+.side .who button{margin-top:8px}
+.main{min-width:0;padding:28px clamp(16px,3vw,40px) 60px}
+.topbar{display:none}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.pagehead p{margin:6px 0 0;color:var(--muted)}
+
+/* ---------- controls ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--card);padding:9px 15px;border-radius:10px;cursor:pointer;font-size:15px;font-weight:500;white-space:nowrap;transition:transform .08s, background .15s}
+.btn:hover{background:var(--leaf-wash)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--leaf-deep);border-color:var(--leaf-deep);color:#fff}
+.btn.primary:hover{background:var(--leaf-ink)}
+.btn.leaf{background:var(--leaf);border-color:var(--leaf);color:#fff}
+.btn.danger{color:var(--absent);border-color:oklch(0.85 0.06 30)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.sm{padding:6px 10px;font-size:14px;border-radius:8px}
+.btn.lg{padding:14px 22px;font-size:17px;border-radius:12px}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.side .btn{background:transparent;color:inherit;border-color:oklch(1 0 0 / .25)}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500;color:var(--muted)}
+label.f > span b{color:var(--absent)}
+.in{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 12px;font-size:16px;min-width:0;width:100%}
+.in:focus,.btn:focus-visible{outline:3px solid oklch(0.80 0.12 125);outline-offset:1px;border-color:var(--leaf)}
+textarea.in{min-height:110px;resize:vertical}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.filters .in{width:auto;min-width:150px}
+.seg{display:inline-flex;background:oklch(0.94 0.015 120);border-radius:11px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:7px 13px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:500;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--text);box-shadow:0 1px 2px oklch(0 0 0 / .08)}
+
+/* ---------- surfaces ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.card h3{margin-bottom:12px}
+.callout{border-radius:12px;padding:14px 16px;background:oklch(0.96 0.04 85);color:oklch(0.38 0.07 65);font-size:15px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+.callout.ok{background:var(--leaf-wash);color:var(--leaf-ink)}
+.callout.bad{background:oklch(0.95 0.035 30);color:oklch(0.42 0.12 30)}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card);max-height:70vh}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th{position:sticky;top:0;background:oklch(0.965 0.012 120);text-align:left;font-weight:600;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:10px 12px;white-space:nowrap;z-index:1}
+td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle}
+tr:hover td{background:oklch(0.985 0.01 120)}
+td.act{white-space:nowrap;text-align:right}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.p-Present{background:oklch(0.94 0.05 135);color:oklch(0.40 0.11 135)}
+.p-Late{background:oklch(0.95 0.06 85);color:var(--late-ink)}
+.p-Absent{background:oklch(0.95 0.035 30);color:oklch(0.48 0.15 30)}
+.p-Inside{background:oklch(0.94 0.05 135);color:oklch(0.40 0.11 135)}
+.p-Out{background:oklch(0.94 0.03 205);color:oklch(0.42 0.07 205)}
+.p-Inactive{background:oklch(0.94 0.005 120);color:var(--muted)}
+.p-Sent{background:oklch(0.94 0.05 135);color:oklch(0.40 0.11 135)}
+.p-Failed{background:oklch(0.95 0.035 30);color:oklch(0.48 0.15 30)}
+.id{font-family:var(--font-mono);font-size:14px;color:var(--muted);white-space:nowrap}
+td.mono{white-space:nowrap}
+
+/* ---------- dashboard ---------- */
+.hero{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-bottom:16px}
+.board{background:var(--leaf-deep);color:#fff;border-radius:20px;padding:26px 28px;position:relative;overflow:hidden}
+.board .big{font-family:var(--font-display);font-weight:700;font-size:clamp(54px,7vw,92px);line-height:.95;letter-spacing:-.03em}
+.board .big small{font-size:.38em;opacity:.7;font-weight:600;letter-spacing:0}
+.board .lbl{font-size:15px;opacity:.8;margin-top:6px}
+.stack{display:flex;height:16px;border-radius:99px;overflow:hidden;margin:22px 0 14px;background:oklch(1 0 0 / .14)}
+.stack i{display:block;height:100%;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.legend{display:flex;gap:22px;flex-wrap:wrap;font-size:15px}
+.legend b{font-family:var(--font-display);font-size:24px;display:block}
+.legend span{display:flex;flex-direction:column}
+.legend em{font-style:normal;opacity:.75;font-size:14px;display:flex;align-items:center;gap:6px}
+.legend em::before{content:"";width:9px;height:9px;border-radius:3px;background:var(--c)}
+.pulse{position:absolute;top:24px;right:26px;font-size:13px;display:flex;align-items:center;gap:8px;opacity:.85}
+.pulse::before{content:"";width:8px;height:8px;border-radius:50%;background:oklch(0.85 0.17 130);animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+.flow{display:flex;flex-direction:column;gap:2px;max-height:330px;overflow:auto}
+.flow .it{display:grid;grid-template-columns:76px 1fr auto;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px dashed var(--line)}
+.flow .it .t{font-family:var(--font-mono);font-size:14px}
+.flow .it.new{animation:slidein .5s ease-out}
+@keyframes slidein{from{background:var(--leaf-wash);transform:translateY(-4px)}to{background:transparent;transform:none}}
+.bars{display:flex;align-items:flex-end;gap:10px;height:120px;padding-top:10px}
+.bars div{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;font-size:13px;color:var(--muted)}
+.bars i{display:block;width:100%;border-radius:6px 6px 2px 2px;background:var(--leaf);min-height:3px;transition:height .6s}
+.bars div.today i{background:var(--leaf-deep)}
+.meter{height:8px;border-radius:99px;background:oklch(0.94 0.015 120);overflow:hidden;min-width:80px}
+.meter i{display:block;height:100%;background:var(--present)}
+
+/* ---------- scanner ---------- */
+.scanwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+.cam{background:oklch(0.22 0.03 130);border-radius:20px;overflow:hidden;position:relative;aspect-ratio:1/1;max-height:70vh;display:flex;align-items:center;justify-content:center;color:oklch(0.9 0.02 120)}
+#reader{width:100%;height:100%}
+#reader video{object-fit:cover!important;width:100%!important;height:100%!important}
+.cam .idle{text-align:center;padding:30px;position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.timecard{background:#fffdf6;border:1px solid oklch(0.90 0.03 90);border-radius:16px;padding:22px 24px;position:relative;min-height:290px;overflow:hidden;background-image:repeating-linear-gradient(transparent 0 37px, oklch(0.92 0.03 230 / .5) 37px 38px)}
+.timecard .lbl{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.timecard .nm{font-family:var(--font-display);font-size:clamp(26px,3.4vw,38px);font-weight:700;line-height:1.1;margin:8px 0 4px}
+.timecard .meta{color:var(--muted)}
+.stamp{position:absolute;right:20px;bottom:22px;border:4px solid var(--ink);color:var(--ink);border-radius:10px;padding:8px 14px;font-family:var(--font-mono);font-weight:700;text-align:center;transform:rotate(-7deg);opacity:.92;mix-blend-mode:multiply;--ink:var(--present)}
+.stamp b{display:block;font-size:30px;line-height:1}
+.stamp span{font-size:15px;letter-spacing:.12em}
+.stamp.go{animation:stampdown .38s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes stampdown{0%{transform:rotate(-14deg) scale(1.9);opacity:0}60%{opacity:1}100%{transform:rotate(-7deg) scale(1);opacity:.92}}
+.timecard.flash{animation:flash .6s ease-out}
+@keyframes flash{from{box-shadow:0 0 0 8px var(--flash)}to{box-shadow:0 0 0 0 transparent}}
+.scanlog{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.scanlog .it{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:8px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+
+/* ---------- QR cards ---------- */
+.qrgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+.qrcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center}
+.qrcard canvas{width:100%;height:auto;border-radius:8px}
+.qrcard .nm{font-size:14px;font-weight:600;line-height:1.25}
+
+/* ---------- modal + toast ---------- */
+.veil{position:fixed;inset:0;background:oklch(0.2 0.03 130 / .45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;animation:fade .15s}
+.modal{background:var(--card);border-radius:18px;max-width:720px;width:100%;max-height:90vh;overflow:auto;padding:24px;box-shadow:0 30px 80px oklch(0 0 0 / .25)}
+.modal .mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:10px}
+@keyframes fade{from{opacity:0}}
+#toasts{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:60;width:min(92vw,440px)}
+.toast{background:var(--leaf-ink);color:#fff;padding:12px 16px;border-radius:12px;font-size:15px;box-shadow:0 10px 30px oklch(0 0 0 / .2);animation:fade .2s}
+.toast.bad{background:oklch(0.45 0.14 30)}
+.spin{width:18px;height:18px;border:2.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:rot .7s linear infinite;display:inline-block}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ---------- auth ---------- */
+.auth{min-height:100vh;display:grid;grid-template-columns:1.1fr 1fr}
+.auth .art{background:var(--leaf-deep);color:#fff;padding:48px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+.auth .art h1{font-size:clamp(34px,4.4vw,58px);line-height:1.02;max-width:12ch}
+.auth .art .qrs{position:absolute;right:-40px;bottom:-40px;opacity:.12}
+.auth .form{display:flex;align-items:center;justify-content:center;padding:32px}
+.auth .form .box{width:min(380px,100%);display:flex;flex-direction:column;gap:16px}
+
+/* ---------- print ---------- */
+#printzone{display:none}
+@media print{
+  body *{visibility:hidden}
+  #printzone,#printzone *{visibility:visible}
+  #printzone{display:block;position:absolute;inset:0}
+  .psheet{display:grid;grid-template-columns:repeat(4,1fr);gap:6mm;page-break-after:always;padding:4mm}
+  .psheet img{width:100%;border:0.3mm dashed #999;border-radius:3mm}
+  .preport{font-family:Arial,sans-serif;font-size:11px}
+  .preport table{font-size:10px}
+  .preport th{position:static;background:#eee;color:#000}
+  @page{size:A4;margin:8mm}
+}
+
+@media (max-width: 1000px){
+  .hero,.scanwrap,.g3{grid-template-columns:1fr}
+}
+@media (max-width: 760px){
+  .shell{grid-template-columns:1fr}
+  .side{position:fixed;inset:0 auto 0 0;width:270px;z-index:40;transform:translateX(-100%);transition:transform .25s}
+  .side.open{transform:none;box-shadow:0 0 0 100vmax oklch(0 0 0 / .35)}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--leaf-deep);color:#fff;position:sticky;top:0;z-index:30}
+  .topbar b{font-family:var(--font-display)}
+  .main{padding:18px 14px 60px}
+  .g2{grid-template-columns:1fr}
+  .auth{grid-template-columns:1fr}
+  .auth .art{padding:28px;min-height:220px}
+  h1{font-size:25px}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts"></div>
+<div id="printzone"></div>
+<script>
+/* =====================================================================
+   APP CORE
+   ===================================================================== */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const S = {
+  api: localStorage.getItem('qa_api') || window.DEFAULT_API_URL || '',
+  token: sessionStorage.getItem('qa_token') || localStorage.getItem('qa_token_kiosk') || '',
+  user: null, settings: {}, grades: [], sections: [], groups: [], today: '',
+  students: null, view: '', timers: []
+};
+
+async function api(action, data = {}) {
+  if (!S.api) throw new Error('System link not set.');
+  let res;
+  try {
+    res = await fetch(S.api, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, token: S.token, data })
+    });
+  } catch (e) {
+    throw new Error('Cannot reach the system. Check the internet connection.');
+  }
+  let j;
+  try { j = await res.json(); } catch (e) { throw new Error('The system link did not answer correctly. Check the Web App URL and deployment access ("Anyone").'); }
+  if (!j.ok) {
+    if (j.code === 'AUTH' && action !== 'login') { logout(true); }
+    const err = new Error(j.error || 'Something went wrong.'); err.code = j.code; throw err;
+  }
+  return j.data;
+}
+
+function toast(msg, bad = false) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (bad ? ' bad' : '');
+  t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(() => t.remove(), bad ? 6000 : 3500);
+}
+
+function modal(title, html, onMount) {
+  const v = document.createElement('div');
+  v.className = 'veil';
+  v.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="mh"><h2>${esc(title)}</h2><button class="btn ghost" data-x aria-label="Close">✕</button></div><div class="mb">${html}</div></div>`;
+  const close = () => { v.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  v.addEventListener('click', e => { if (e.target === v || e.target.closest('[data-x]')) close(); });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(v);
+  close.el = $('.mb', v);
+  if (onMount) onMount(close.el, close);
+  return close;
+}
+
+async function busy(btn, fn) {
+  const old = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>'; }
+  try { return await fn(); }
+  catch (e) { toast(e.message, true); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+}
+
+/* ---------- time helpers ---------- */
+const to12 = t => {
+  if (!t) return '';
+  const [h, m] = String(t).split(':').map(Number);
+  if (isNaN(h)) return t;
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+};
+const longDate = d => { if (!d) return ''; const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); };
+const shortDate = d => { if (!d) return ''; const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }); };
+const dayName = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-PH', { weekday: 'short' }); };
+const localYmd = (dt = new Date()) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+const pretty = n => { let s = String(n || ''); const p = s.split(','); if (p.length >= 2) s = p.slice(1).join(' ').trim() + ' ' + p[0].trim(); return s.toLowerCase().replace(/(^|[\s.\-'])([a-zñ])/g, (m, a, b) => a + b.toUpperCase()).replace(/\s+/g, ' '); };
+const badge = (text, cls) => `<span class="pill p-${cls}">${esc(text)}</span>`;
+const pill = (s) => `<span class="pill p-${esc(s)}">${esc(s)}</span>`;
+const notifPill = (txt) => {
+  if (!txt) return '<span class="muted small">–</span>';
+  const parts = String(txt).split('|').map(x => x.trim());
+  return parts.map(p => { const [ch, st] = p.split(':').map(x => (x || '').trim()); const cls = st === 'Sent' ? 'Sent' : (st === 'Failed' ? 'Failed' : 'Inactive'); return `<span class="pill p-${cls}" title="${esc(p)}">${esc(ch)}</span>`; }).join(' ');
+};
+
+/* ---------- icons ---------- */
+const I = {
+  dashboard: '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>',
+  register: '<path d="M15 19c0-2.2-2.7-4-6-4s-6 1.8-6 4M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M16 11h6"/>',
+  students: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  qr: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/>',
+  scanner: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16"/>',
+  monitor: '<path d="M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/>',
+  notifications: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 0 0 4 0"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 8v4l3 2"/>',
+  reports: '<path d="M7 17V11M12 17V7M17 17v-4M4 21h16"/>',
+  settings: '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
+};
+const icon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${I[k]}</svg>`;
+
+const NAV = [
+  ['dashboard', 'Dashboard', ['Admin', 'Teacher']],
+  ['register', 'Student Registration', ['Admin', 'Teacher']],
+  ['students', 'Student Database', ['Admin', 'Teacher']],
+  ['qr', 'QR Code Generator', ['Admin', 'Teacher']],
+  ['scanner', 'QR Code Scanner', ['Admin', 'Teacher', 'Scanner']],
+  ['monitor', 'Time In / Out Monitor', ['Admin', 'Teacher']],
+  ['notifications', 'Parent Notifications', ['Admin', 'Teacher']],
+  ['history', 'Attendance History', ['Admin', 'Teacher']],
+  ['reports', 'Attendance Reports', ['Admin', 'Teacher']],
+  ['settings', 'Settings & Users', ['Admin']]
+];
+
+/* ---------- boot ---------- */
+async function boot() {
+  if (!S.api) return renderConnect();
+  if (!S.token) return renderLogin();
+  try {
+    const b = await api('bootstrap');
+    Object.assign(S, { user: b.user, settings: b.settings, grades: b.grades || [], sections: b.sections || [], groups: b.groups || [], today: b.today });
+    renderShell();
+    const want = location.hash.slice(1);
+    go(allowed(want) ? want : (S.user.role === 'Scanner' ? 'scanner' : 'dashboard'));
+  } catch (e) {
+    if (e.code !== 'AUTH') toast(e.message, true);
+    renderLogin();
+  }
+}
+const allowed = v => { const n = NAV.find(x => x[0] === v); return n && S.user && n[2].includes(S.user.role); };
+
+function renderConnect() {
+  $('#app').innerHTML = `
+  <div class="auth"><div class="art"><div class="small" style="opacity:.8">First-time setup</div>
+    <h1>Connect this device to your attendance sheet.</h1>
+    <div class="small" style="opacity:.8">Paste the Web App URL you copied from Google Apps Script (Deploy → Web app). It ends with <span class="mono">/exec</span>.</div></div>
+  <div class="form"><div class="box">
+    <h2>System link</h2>
+    <label class="f"><span>Web App URL</span><input class="in mono" id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec"></label>
+    <button class="btn primary lg" id="connectBtn" type="button">Connect</button>
+    <p class="muted small">Saved on this device only. You can change it later from the login screen.</p>
+  </div></div></div>`;
+  const go_ = () => busy($('#connectBtn'), async () => {
+    const url = $('#apiUrl').value.trim();
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) throw new Error('That does not look like a Web App URL (must end with /exec).');
+    S.api = url;
+    const p = await api('ping');
+    localStorage.setItem('qa_api', url);
+    toast('Connected to ' + p.school);
+    renderLogin();
+  });
+  $('#connectBtn').onclick = go_;
+  $('#apiUrl').onkeydown = e => { if (e.key === 'Enter') go_(); };
+}
+
+function renderLogin() {
+  stopTimers(); stopCamera();
+  $('#app').innerHTML = `
+  <div class="auth">
+    <div class="art">
+      <div class="small" style="opacity:.85" id="schoolName">Attendance System</div>
+      <h1>Scan in. Scan out. Parents know.</h1>
+      <div class="small" style="opacity:.8">Creative Technologies · QR attendance</div>
+      <svg class="qrs" width="320" height="320" viewBox="0 0 7 7" fill="#fff"><path d="M0 0h3v3H0zM4 0h3v3H4zM0 4h3v3H0zM4 4h1v1H4zM6 4h1v1H6zM5 5h1v1H5zM4 6h1v1H4zM6 6h1v1H6z"/></svg>
+    </div>
+    <div class="form"><div class="box">
+      <h2>Log in</h2>
+      <label class="f"><span>Username</span><input class="in" id="lu" autocomplete="username" autocapitalize="none"></label>
+      <label class="f"><span>PIN</span><input class="in mono" id="lp" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8"></label>
+      <label class="row small muted"><input type="checkbox" id="kiosk"> Keep this device logged in (scanner kiosk)</label>
+      <button class="btn primary lg" id="loginBtn" type="button">Log in</button>
+      <button class="btn ghost sm" id="changeLink" type="button">Change system link</button>
+    </div></div>
+  </div>`;
+  api('ping').then(p => { $('#schoolName') && ($('#schoolName').textContent = p.school); }).catch(() => {});
+  const doLogin = () => busy($('#loginBtn'), async () => {
+    const r = await api('login', { username: $('#lu').value, pin: $('#lp').value });
+    S.token = r.token;
+    sessionStorage.setItem('qa_token', r.token);
+    if ($('#kiosk').checked) localStorage.setItem('qa_token_kiosk', r.token); else localStorage.removeItem('qa_token_kiosk');
+    await boot();
+  });
+  $('#loginBtn').onclick = doLogin;
+  $('#lp').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
+  $('#lu').onkeydown = e => { if (e.key === 'Enter') $('#lp').focus(); };
+  $('#changeLink').onclick = () => { localStorage.removeItem('qa_api'); S.api = ''; renderConnect(); };
+  $('#lu').focus();
+}
+
+function logout(silent) {
+  if (!silent && S.token) api('logout').catch(() => {});
+  S.token = ''; S.user = null; S.students = null;
+  sessionStorage.removeItem('qa_token'); localStorage.removeItem('qa_token_kiosk');
+  renderLogin();
+}
+
+function renderShell() {
+  const items = NAV.filter(n => n[2].includes(S.user.role));
+  $('#app').innerHTML = `
+  <div class="topbar"><button class="btn sm" id="menuBtn" style="background:transparent;color:#fff;border-color:#ffffff55" type="button">☰ Menu</button><b>${esc(S.settings.subject)}</b><span></span></div>
+  <div class="shell">
+    <aside class="side" id="side">
+      <div class="brand"><b>${esc(S.settings.school)}</b><span>${esc(S.settings.subject)} · Attendance</span></div>
+      ${items.map((n, i) => `<button class="nav" data-go="${n[0]}" type="button">${icon(n[0])}<span>${n[1]}</span><span class="n">${String(i + 1).padStart(2, '0')}</span></button>`).join('')}
+      <div class="who"><div><b>${esc(S.user.fullName)}</b></div><div style="opacity:.7">${esc(S.user.role)}</div><button class="btn sm" id="logoutBtn" type="button">Log out</button></div>
+    </aside>
+    <main class="main" id="view"></main>
+  </div>`;
+  $$('.nav').forEach(b => b.onclick = () => { go(b.dataset.go); $('#side').classList.remove('open'); });
+  $('#logoutBtn').onclick = () => logout();
+  $('#menuBtn').onclick = () => $('#side').classList.toggle('open');
+  $('#side').addEventListener('click', e => { if (e.target.id === 'side') $('#side').classList.remove('open'); });
+}
+
+function stopTimers() { S.timers.forEach(clearInterval); S.timers = []; }
+function every(ms, fn) { S.timers.push(setInterval(() => { if (!document.hidden) fn(); }, ms)); }
+
+function go(view) {
+  if (!allowed(view)) view = S.user.role === 'Scanner' ? 'scanner' : 'dashboard';
+  stopTimers();
+  if (view !== 'scanner') stopCamera();
+  S.view = view;
+  history.replaceState(null, '', '#' + view);
+  $$('.nav').forEach(b => b.classList.toggle('on', b.dataset.go === view));
+  const v = $('#view');
+  v.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+  window.scrollTo(0, 0);
+  VIEWS[view](v);
+}
+
+async function getStudents(force) {
+  if (!S.students || force) S.students = await api('listStudents');
+  return S.students;
+}
+
+function groupOptions(selected = '') {
+  return `<option value="">All grades & sections</option>` + S.groups.map(g => { const [gr, se] = g.split('|'); return `<option value="${esc(g)}" ${g === selected ? 'selected' : ''}>${esc(gr)} – ${esc(se)}</option>`; }).join('');
+}
+const splitGroup = v => { const [grade = '', section = ''] = (v || '').split('|'); return { grade, section }; };
+
+function head(title, sub, right = '') {
+  return `<div class="pagehead"><div><h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="row">${right}</div></div>`;
+}
+
+/* =====================================================================
+   1. DASHBOARD
+   ===================================================================== */
+const VIEWS = {};
+VIEWS.dashboard = async (v) => {
+  let date = S.today || localYmd();
+  v.innerHTML = head('Dashboard', '', `<input type="date" class="in" id="dDate" value="${date}" style="width:auto"><button class="btn" id="dRefresh" type="button">Refresh</button>`) + '<div id="dBody"><div class="empty"><span class="spin"></span></div></div>';
+  let lastIds = new Set();
+  const load = async () => {
+    try {
+      const d = await api('day', { date });
+      const attended = d.present + d.late;
+      const pct = x => d.total ? (x * 100 / d.total) : 0;
+      const isToday = date === S.today;
+      const newIds = new Set(d.records.map(r => r.recordId + (r.timeOut ? 'o' : 'i')));
+      $('#dBody').innerHTML = `
+      <div class="hero">
+        <div class="board">
+          ${isToday ? `<div class="pulse">Live · ${to12(d.serverTime)}</div>` : ''}
+          <div class="lbl">${esc(longDate(date))}</div>
+          <div class="big">${attended}<small> / ${d.total} in class</small></div>
+          <div class="stack" aria-hidden="true">
+            <i style="width:${pct(d.present)}%;background:oklch(0.80 0.16 130)"></i>
+            <i style="width:${pct(d.late)}%;background:var(--late)"></i>
+            <i style="width:${pct(d.absent)}%;background:oklch(0.66 0.14 35)"></i>
+          </div>
+          <div class="legend">
+            <span><b>${d.present}</b><em style="--c:oklch(0.80 0.16 130)">On time</em></span>
+            <span><b>${d.late}</b><em style="--c:var(--late)">Late</em></span>
+            <span><b>${d.absent}</b><em style="--c:oklch(0.66 0.14 35)">${isToday ? 'Not yet in' : 'Absent'}</em></span>
+            <span><b>${d.inside}</b><em style="--c:#fff">Still inside</em></span>
+            <span><b>${d.out}</b><em style="--c:var(--out)">Timed out</em></span>
+          </div>
+        </div>
+        <div class="card"><h3>Last 7 days</h3>
+          <div class="bars">${(() => { const mx = Math.max(1, ...d.trend.map(t => t.attended)); return d.trend.map(t => `<div class="${t.date === date ? 'today' : ''}" title="${t.attended} scans"><span>${t.attended || ''}</span><i style="height:${t.attended * 80 / mx}%"></i><span>${dayName(t.date)}</span></div>`).join(''); })()}</div>
+          <p class="muted small" style="margin:12px 0 0">Students with a TIME IN per day.</p>
+        </div>
+      </div>
+      <div class="grid g3">
+        <div class="card"><h3>By section</h3>
+          <table><tbody>${d.groups.map(g => { const r = g.total ? Math.round((g.present + g.late) * 100 / g.total) : 0; return `<tr><td><b>${esc(g.grade)}</b><div class="muted small">${esc(g.section)}</div></td><td style="width:42%"><div class="meter"><i style="width:${r}%"></i></div><div class="muted small" style="margin-top:4px">${g.present + g.late}/${g.total} · ${g.late} late</div></td><td class="mono" style="text-align:right">${r}%</td></tr>`; }).join('') || '<tr><td class="empty">No students yet</td></tr>'}</tbody></table>
+        </div>
+        <div class="card"><h3>Latest scans</h3>
+          <div class="flow">${d.records.slice(0, 30).map(r => { const k = r.recordId + (r.timeOut ? 'o' : 'i'); return `<div class="it ${lastIds.size && !lastIds.has(k) ? 'new' : ''}"><span class="t">${to12(r.timeOut || r.timeIn)}</span><span><b>${esc(pretty(r.name))}</b><div class="muted small">${esc(r.grade)} · ${esc(r.section)}</div></span>${r.timeOut ? pill('Out') : pill(r.status)}</div>`; }).join('') || '<div class="empty">No scans yet</div>'}</div>
+        </div>
+        <div class="card"><h3>${isToday ? 'Not yet in' : 'Absent'} <span class="muted small">(${d.absentList.length})</span></h3>
+          <div class="flow">${d.absentList.slice(0, 200).map(s => `<div class="it" style="grid-template-columns:1fr auto"><span><b>${esc(pretty(s.name))}</b><div class="muted small">${esc(s.grade)} · ${esc(s.section)}</div></span><button class="btn sm" data-hist="${esc(s.id)}" type="button">History</button></div>`).join('') || '<div class="empty">Everyone is here 🎉</div>'}</div>
+        </div>
+      </div>`;
+      lastIds = newIds;
+      $$('[data-hist]', $('#dBody')).forEach(b => b.onclick = () => openHistory(b.dataset.hist));
+    } catch (e) { toast(e.message, true); }
+  };
+  $('#dDate').onchange = e => { date = e.target.value || S.today; load(); };
+  $('#dRefresh').onclick = load;
+  await load();
+  every(20000, () => { if (date === S.today) load(); });
+};
+
+/* =====================================================================
+   2. STUDENT REGISTRATION
+   ===================================================================== */
+const GRADE_LIST = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+
+function studentForm(st = {}, edit = false) {
+  const grades = [...new Set([...GRADE_LIST, ...S.grades])];
+  return `
+  <div class="grid g2">
+    <label class="f"><span>Student ID ${edit ? '' : '<span class="muted">(leave blank = automatic)</span>'}</span><input class="in mono" name="id" value="${esc(st.id)}" ${edit ? 'readonly' : ''} placeholder="e.g. PNHS-G7-019 or LRN"></label>
+    <label class="f"><span>Full name <b>*</b> <span class="muted">(SURNAME, First M.)</span></span><input class="in" name="name" value="${esc(st.name)}" placeholder="DELA CRUZ, JUAN P."></label>
+    <label class="f"><span>Sex</span><select class="in" name="sex"><option value="">–</option><option ${st.sex === 'Male' ? 'selected' : ''}>Male</option><option ${st.sex === 'Female' ? 'selected' : ''}>Female</option></select></label>
+    <label class="f"><span>Grade level <b>*</b></span><select class="in" name="grade"><option value="">Choose…</option>${grades.map(g => `<option ${g === st.grade ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select></label>
+    <label class="f"><span>Section <b>*</b></span><input class="in" name="section" list="secList" value="${esc(st.section)}" placeholder="MAKADIYOS"><datalist id="secList">${S.sections.map(s => `<option value="${esc(s)}">`).join('')}</datalist></label>
+    <label class="f"><span>Parent/Guardian name</span><input class="in" name="guardian" value="${esc(st.guardian)}"></label>
+    <label class="f"><span>Parent/Guardian mobile <span class="muted">(for SMS)</span></span><input class="in mono" name="contact" value="${esc(st.contact)}" inputmode="tel" placeholder="09XXXXXXXXX"></label>
+    <label class="f"><span>Parent/Guardian email</span><input class="in" name="email" type="email" value="${esc(st.email)}" placeholder="parent@gmail.com"></label>
+  </div>`;
+}
+const readForm = el => Object.fromEntries($$('[name]', el).map(i => [i.name, i.value]));
+
+VIEWS.register = (v) => {
+  v.innerHTML = head('Student Registration', 'New students get a unique QR code the moment you save.', S.user.role === 'Admin' ? '<button class="btn" id="bulkBtn" type="button">Bulk add from Excel</button>' : '') + `
+  <div class="grid" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);align-items:start" id="regGrid">
+    <div class="card" id="regForm">${studentForm()}<div class="row" style="margin-top:18px"><button class="btn primary lg" id="saveBtn" type="button">Register student</button><button class="btn ghost" id="clearBtn" type="button">Clear</button></div></div>
+    <div class="card" id="regResult"><h3>QR card preview</h3><p class="muted">Fill the form and save. The student's printable QR card appears here.</p></div>
+  </div>`;
+  if (window.innerWidth < 1000) $('#regGrid').style.gridTemplateColumns = '1fr';
+  const save = (force) => busy($('#saveBtn'), async () => {
+    try {
+      const r = await api('saveStudent', { ...readForm($('#regForm')), force });
+      S.students = null;
+      const st = r.student;
+      if (!S.groups.includes(st.grade + '|' + st.section)) { S.groups.push(st.grade + '|' + st.section); S.groups.sort(); }
+      if (!S.sections.includes(st.section)) S.sections.push(st.section);
+      toast(`${pretty(st.name)} registered · ${st.id}`);
+      showCardIn($('#regResult'), st);
+      $$('[name]', $('#regForm')).forEach(i => { if (!['grade', 'section'].includes(i.name)) i.value = ''; });
+      $('[name=name]', $('#regForm')).focus();
+    } catch (e) {
+      if (e.code === 'DUP_NAME' && confirm(e.message + '\n\nRegister anyway as a different student?')) return save(true);
+      throw e;
+    }
+  });
+  $('#saveBtn').onclick = () => save(false);
+  $('#clearBtn').onclick = () => $$('[name]', $('#regForm')).forEach(i => { if (!i.readOnly) i.value = ''; });
+  $('#bulkBtn') && ($('#bulkBtn').onclick = bulkImport);
+};
+
+function bulkImport() {
+  modal('Bulk add students', `
+    <p class="muted">Copy rows from Excel and paste below. Column order:<br><span class="mono small">Full Name · Sex · Grade Level · Section · Guardian Name · Guardian Mobile · Guardian Email</span></p>
+    <textarea class="in mono" id="bulkTxt" style="min-height:200px" placeholder="DELA CRUZ, JUAN P.	Male	Grade 7	MAKADIYOS	Maria Dela Cruz	09171234567	maria@gmail.com"></textarea>
+    <div class="row" style="margin-top:14px"><button class="btn primary" id="bulkGo" type="button">Import</button><span class="muted small" id="bulkInfo"></span></div>`, (el, close) => {
+    $('#bulkTxt', el).oninput = () => { const n = $('#bulkTxt', el).value.trim().split('\n').filter(Boolean).length; $('#bulkInfo', el).textContent = n ? n + ' row(s) ready' : ''; };
+    $('#bulkGo', el).onclick = () => busy($('#bulkGo', el), async () => {
+      const rows = $('#bulkTxt', el).value.split('\n').map(l => l.split('\t')).filter(c => c[0] && c[0].trim())
+        .map(c => ({ name: c[0], sex: (c[1] || '').trim().toUpperCase().startsWith('F') ? 'Female' : ((c[1] || '').trim().toUpperCase().startsWith('M') ? 'Male' : ''), grade: (c[2] || '').trim(), section: c[3], guardian: c[4], contact: c[5], email: c[6] }));
+      const r = await api('importStudents', { rows });
+      S.students = null;
+      toast(`${r.added} student(s) added`);
+      if (r.skipped.length) alert('Skipped:\n' + r.skipped.join('\n'));
+      close();
+      const b = await api('bootstrap'); Object.assign(S, { grades: b.grades, sections: b.sections, groups: b.groups });
+    });
+  });
+}
+
+/* =====================================================================
+   3. STUDENT DATABASE
+   ===================================================================== */
+VIEWS.students = async (v) => {
+  const st = await getStudents(true).catch(e => { toast(e.message, true); return []; });
+  const missing = st.filter(s => s.status === 'Active' && !s.contact && !s.email).length;
+  v.innerHTML = head('Student Database', `${st.length} students registered`, `<button class="btn" id="xlsBtn" type="button">Export to Excel</button><button class="btn primary" type="button" onclick="go('register')">+ Register</button>`) + `
+  ${missing ? `<div class="callout"><span><b>${missing} active students</b> have no parent mobile or email yet, so their parents won't get notified.</span><button class="btn sm" id="showMissing" type="button">Show them</button></div>` : ''}
+  <div class="filters">
+    <input class="in" id="q" placeholder="Search name or ID" style="min-width:220px">
+    <select class="in" id="grp">${groupOptions()}</select>
+    <select class="in" id="stat"><option value="">Any status</option><option>Active</option><option>Inactive</option><option value="missing">Missing parent contact</option></select>
+  </div>
+  <div class="tablewrap"><table><thead><tr><th>ID</th><th>Name</th><th>Sex</th><th>Grade · Section</th><th>Parent/Guardian</th><th>Mobile</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+  const draw = () => {
+    const q = $('#q').value.trim().toUpperCase(), g = splitGroup($('#grp').value), sv = $('#stat').value;
+    const rows = st.filter(s => (!q || s.name.toUpperCase().includes(q) || s.id.toUpperCase().includes(q)) && (!g.grade || (s.grade === g.grade && s.section === g.section)) &&
+      (!sv || (sv === 'missing' ? (!s.contact && !s.email) : s.status === sv)));
+    $('#tb').innerHTML = rows.map(s => `<tr>
+      <td class="id">${esc(s.id)}</td><td><b>${esc(s.name)}</b></td><td>${esc(s.sex ? s.sex[0] : '')}</td><td>${esc(s.grade)} · ${esc(s.section)}</td>
+      <td>${esc(s.guardian) || '<span class="muted">–</span>'}</td><td class="mono small">${esc(s.contact) || '<span class="muted">–</span>'}</td><td class="small">${esc(s.email) || '<span class="muted">–</span>'}</td>
+      <td>${pill(s.status)}</td>
+      <td class="act"><button class="btn sm" data-a="hist" data-id="${esc(s.id)}" type="button">History</button> <button class="btn sm" data-a="qr" data-id="${esc(s.id)}" type="button">QR</button> <button class="btn sm" data-a="edit" data-id="${esc(s.id)}" type="button">Edit</button></td></tr>`).join('') || '<tr><td colspan="9" class="empty">No matching students</td></tr>';
+  };
+  ['q', 'grp', 'stat'].forEach(id => $('#' + id).addEventListener('input', draw));
+  $('#showMissing') && ($('#showMissing').onclick = () => { $('#stat').value = 'missing'; draw(); });
+  $('#tb').onclick = e => {
+    const b = e.target.closest('[data-a]'); if (!b) return;
+    const s = st.find(x => x.id === b.dataset.id);
+    if (b.dataset.a === 'hist') openHistory(s.id);
+    if (b.dataset.a === 'qr') openCard(s);
+    if (b.dataset.a === 'edit') editStudent(s, () => VIEWS.students(v));
+  };
+  $('#xlsBtn').onclick = () => exportXlsx('Student_Database', [{ name: 'Students', rows: [['Student ID', 'Full Name', 'Sex', 'Grade Level', 'Section', 'Parent/Guardian Name', 'Parent/Guardian Contact', 'Parent/Guardian Email', 'Subject', 'QR Code', 'Status', 'Date Registered'], ...st.map(s => [s.id, s.name, s.sex, s.grade, s.section, s.guardian, s.contact, s.email, s.subject, s.qr, s.status, s.registered])] }]);
+  draw();
+};
+
+function editStudent(s, after) {
+  const admin = S.user.role === 'Admin';
+  modal('Edit student', `<div id="ef">${studentForm(s, true)}</div>
+    <div class="row" style="margin-top:18px;justify-content:space-between">
+      <button class="btn primary" id="eSave" type="button">Save changes</button>
+      ${admin ? `<span class="row"><button class="btn" id="eQr" type="button">Issue new QR (lost card)</button><button class="btn danger" id="eStat" type="button">${s.status === 'Active' ? 'Deactivate' : 'Re-activate'}</button></span>` : ''}
+    </div>`, (el, close) => {
+    $('#eSave', el).onclick = () => busy($('#eSave', el), async () => { await api('saveStudent', { ...readForm($('#ef', el)), mode: 'edit' }); toast('Saved'); close(); after && after(); });
+    if (!admin) return;
+    $('#eQr', el).onclick = () => { if (!confirm('Issue a new QR code for ' + s.name + '? The old printed card will stop working.')) return; busy($('#eQr', el), async () => { const r = await api('regenerateQr', { id: s.id }); s.qr = r.qr; toast('New QR issued. Print the new card.'); close(); openCard(s); after && after(); }); };
+    $('#eStat', el).onclick = () => busy($('#eStat', el), async () => { const st = s.status === 'Active' ? 'Inactive' : 'Active'; await api('setStudentStatus', { id: s.id, status: st }); toast(s.name + ' is now ' + st); close(); after && after(); });
+  });
+}
+
+/* =====================================================================
+   4. QR CODE GENERATOR  (cards are drawn in the browser, nothing leaves the device)
+   ===================================================================== */
+function qrModules(text) {
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  const n = q.getModuleCount();
+  return { n, dark: (r, c) => q.isDark(r, c) };
+}
+
+function drawQr(ctx, text, x, y, size, color = '#1d2a14') {
+  const m = qrModules(text), quiet = 2, cell = size / (m.n + quiet * 2);
+  ctx.fillStyle = '#fff'; ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = color;
+  for (let r = 0; r < m.n; r++) for (let c = 0; c < m.n; c++) if (m.dark(r, c)) ctx.fillRect(Math.floor(x + (c + quiet) * cell), Math.floor(y + (r + quiet) * cell), Math.ceil(cell), Math.ceil(cell));
+}
+
+function wrapLines(ctx, text, maxW) {
+  const words = String(text).split(' '); const lines = []; let cur = '';
+  words.forEach(w => { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; });
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/** Portrait ID card 54 × 86 mm at ~300dpi */
+function cardCanvas(s) {
+  const W = 640, H = 1010, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  x.fillStyle = '#fbfdf7'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#2f5d1e'; x.fillRect(0, 0, W, 200);
+  x.fillStyle = '#9fd36a'; x.fillRect(0, 200, W, 10);
+  x.fillStyle = '#fff'; x.textAlign = 'center';
+  x.font = '700 36px Quicksand, sans-serif';
+  wrapLines(x, S.settings.school || 'School', W - 70).slice(0, 2).forEach((l, i, a) => x.fillText(l, W / 2, (a.length > 1 ? 72 : 92) + i * 42));
+  x.font = '500 24px "Spline Sans", sans-serif'; x.globalAlpha = .85;
+  x.fillText((S.settings.subject || '') + ' · Attendance Card', W / 2, 168); x.globalAlpha = 1;
+  drawQr(x, s.qr, 90, 245, 460);
+  x.fillStyle = '#1f2a17'; x.font = '700 40px Quicksand, sans-serif';
+  const nm = pretty(s.name);
+  const lines = wrapLines(x, nm, W - 70).slice(0, 2);
+  lines.forEach((l, i) => x.fillText(l, W / 2, 768 + i * 46));
+  const yy = 768 + lines.length * 46;
+  x.font = '500 27px "Spline Sans", sans-serif'; x.fillStyle = '#4b5741';
+  x.fillText(`${s.grade} · ${s.section}`, W / 2, yy + 12);
+  x.font = '700 28px "Source Code Pro", monospace'; x.fillStyle = '#2f5d1e';
+  x.fillText(s.id, W / 2, yy + 62);
+  x.font = '400 19px "Spline Sans", sans-serif'; x.fillStyle = '#7a856f';
+  x.fillText('Scan at the door for TIME IN and TIME OUT', W / 2, H - 30);
+  return c;
+}
+
+const cardName = s => `${s.id}_${pretty(s.name).replace(/[^A-Za-z0-9ñÑ]+/g, '_')}.png`;
+function downloadBlob(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); }
+function downloadCard(s) { cardCanvas(s).toBlob(b => downloadBlob(b, cardName(s)), 'image/png'); }
+
+function printCards(list) {
+  if (!list.length) return toast('Nothing to print', true);
+  const per = 8, pages = [];
+  for (let i = 0; i < list.length; i += per) pages.push(list.slice(i, i + per));
+  $('#printzone').innerHTML = pages.map(p => `<div class="psheet">${p.map(s => `<img src="${cardCanvas(s).toDataURL('image/png')}">`).join('')}</div>`).join('');
+  setTimeout(() => { window.print(); }, 300);
+}
+
+function showCardIn(el, s) {
+  el.innerHTML = `<h3>QR card ready</h3><div style="max-width:260px;margin:0 auto"></div><div class="row" style="justify-content:center;margin-top:14px"><button class="btn primary" data-dl type="button">Download PNG</button><button class="btn" data-pr type="button">Print</button></div>`;
+  const c = cardCanvas(s); c.style.width = '100%'; c.style.borderRadius = '12px'; c.style.border = '1px solid var(--line)';
+  el.children[1].appendChild(c);
+  $('[data-dl]', el).onclick = () => downloadCard(s);
+  $('[data-pr]', el).onclick = () => printCards([s]);
+}
+function openCard(s) { modal(pretty(s.name), '<div></div>', el => showCardIn(el.firstChild, s)); }
+
+VIEWS.qr = async (v) => {
+  const all = (await getStudents(true).catch(e => { toast(e.message, true); return []; })).filter(s => s.status === 'Active');
+  await document.fonts.ready;
+  v.innerHTML = head('QR Code Generator', 'Every student already has a unique, unguessable QR code. Print, cut, laminate.', `<button class="btn" id="zipBtn" type="button">Download all (ZIP)</button><button class="btn primary" id="prBtn" type="button">Print cards (8 per A4)</button>`) + `
+  <div class="filters"><select class="in" id="grp">${groupOptions()}</select><input class="in" id="q" placeholder="Search name"><span class="muted small" id="cnt"></span></div>
+  <div class="qrgrid" id="qg"></div>`;
+  let list = all;
+  const draw = () => {
+    const g = splitGroup($('#grp').value), q = $('#q').value.trim().toUpperCase();
+    list = all.filter(s => (!g.grade || (s.grade === g.grade && s.section === g.section)) && (!q || s.name.toUpperCase().includes(q) || s.id.includes(q)));
+    $('#cnt').textContent = list.length + ' card(s)';
+    const qg = $('#qg'); qg.innerHTML = '';
+    list.slice(0, 400).forEach(s => {
+      const d = document.createElement('div'); d.className = 'qrcard';
+      const c = document.createElement('canvas'); c.width = 240; c.height = 240;
+      drawQr(c.getContext('2d'), s.qr, 0, 0, 240);
+      d.appendChild(c);
+      d.insertAdjacentHTML('beforeend', `<div class="nm">${esc(pretty(s.name))}</div><div class="id">${esc(s.id)}</div><div class="row" style="justify-content:center"><button class="btn sm" data-v type="button">Card</button><button class="btn sm" data-d type="button">PNG</button></div>`);
+      $('[data-v]', d).onclick = () => openCard(s);
+      $('[data-d]', d).onclick = () => downloadCard(s);
+      qg.appendChild(d);
+    });
+  };
+  $('#grp').oninput = draw; $('#q').oninput = draw;
+  $('#prBtn').onclick = () => printCards(list);
+  $('#zipBtn').onclick = () => busy($('#zipBtn'), async () => {
+    const zip = new JSZip();
+    for (const s of list) {
+      const blob = await new Promise(r => cardCanvas(s).toBlob(r, 'image/png'));
+      zip.folder(`${s.grade} - ${s.section}`).file(cardName(s), blob);
+    }
+    downloadBlob(await zip.generateAsync({ type: 'blob' }), 'QR_Cards.zip');
+  });
+  draw();
+};
+
+/* =====================================================================
+   5. QR CODE SCANNER
+   ===================================================================== */
+let CAM = null;
+const SCAN = { last: '', lastAt: 0, queue: [], busy: false, log: [] };
+
+async function stopCamera() {
+  if (CAM) { try { if (CAM.isScanning) await CAM.stop(); CAM.clear(); } catch (e) { } CAM = null; }
+}
+
+let audioCtx;
+function beep(ok) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const tones = ok ? [[880, 0], [1320, .11]] : [[220, 0], [180, .16]];
+    tones.forEach(([f, t]) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = ok ? 'sine' : 'square'; o.frequency.value = f;
+      g.gain.setValueAtTime(.0001, audioCtx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(.25, audioCtx.currentTime + t + .02);
+      g.gain.exponentialRampToValueAtTime(.0001, audioCtx.currentTime + t + .14);
+      o.connect(g).connect(audioCtx.destination); o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + .16);
+    });
+    if (navigator.vibrate) navigator.vibrate(ok ? 60 : [80, 60, 80]);
+  } catch (e) { }
+}
+
+VIEWS.scanner = (v) => {
+  const staff = S.user.role !== 'Scanner';
+  v.innerHTML = head('QR Code Scanner', `Hold the card 15–25 cm from the camera. First scan = TIME IN · later scan = TIME OUT.`) + `
+  <div class="scanwrap">
+    <div>
+      <div class="cam" id="cam"><div id="reader"></div>
+        <div class="idle" id="idle">
+          <div style="font-size:15px;opacity:.8">Camera is off</div>
+          <button class="btn leaf lg" id="startCam" type="button">Start camera</button>
+          <select class="in" id="camSel" style="max-width:260px;background:#ffffff14;color:#fff;border-color:#ffffff33"><option value="">Back camera (default)</option></select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;justify-content:space-between">
+        <button class="btn hidden" id="stopCam" type="button">Stop camera</button>
+        <label class="f" style="flex:1;min-width:220px"><span>USB / Bluetooth scanner or type a code</span><input class="in mono" id="wedge" placeholder="Click here, then scan with a scanner gun" autocomplete="off"></label>
+      </div>
+      ${staff ? `<details class="card" style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">Manual entry (forgot or lost card)</summary>
+        <div class="row" style="margin-top:12px;align-items:flex-end">
+          <label class="f" style="flex:1;min-width:200px"><span>Student</span><input class="in" id="manQ" list="manList" placeholder="Type a name or ID"><datalist id="manList"></datalist></label>
+          <label class="f"><span>Reason</span><select class="in" id="manWhy"><option>No card</option><option>Lost card</option><option>Camera problem</option><option>Late entry by teacher</option></select></label>
+          <button class="btn" data-man="IN" type="button">TIME IN</button><button class="btn" data-man="OUT" type="button">TIME OUT</button>
+        </div></details>` : ''}
+    </div>
+    <div>
+      <div class="timecard" id="tc">
+        <div class="lbl">${esc(S.settings.subject)} · ${esc(longDate(localYmd()))}</div>
+        <div class="nm" id="tcName">Ready to scan</div>
+        <div class="meta" id="tcMeta">Waiting for the first student…</div>
+        <div class="meta small" id="tcNote" style="margin-top:14px;max-width:62%"></div>
+        <div class="stamp hidden" id="stamp"><span id="stampTop">TIME IN</span><b id="stampTime">--:--</b></div>
+      </div>
+      <div class="scanlog" id="slog"></div>
+    </div>
+  </div>`;
+
+  const showResult = (r, ok) => {
+    const tc = $('#tc'), st = $('#stamp');
+    const ink = !ok ? 'var(--absent)' : r.result === 'TIME_OUT' ? 'var(--out)' : (r.status === 'Late' ? 'var(--late-ink)' : 'var(--present)');
+    $('#tcName').textContent = r.student ? pretty(r.student.name) : 'Not recognized';
+    $('#tcMeta').textContent = r.student ? `${r.student.grade} · ${r.student.section} · ${r.student.id}` : '';
+    let note = r.message || '';
+    if (ok && r.notification) note += `\nParent: Email ${r.notification.email.toLowerCase()}, SMS ${r.notification.sms.toLowerCase()}`;
+    $('#tcNote').textContent = note; $('#tcNote').style.whiteSpace = 'pre-line';
+    st.classList.remove('hidden', 'go'); void st.offsetWidth; st.classList.add('go');
+    st.style.setProperty('--ink', ink);
+    $('#stampTop').textContent = ok ? (r.result === 'TIME_OUT' ? 'TIME OUT' : (r.status === 'Late' ? 'LATE · IN' : 'TIME IN')) : ({ DUPLICATE: 'ALREADY IN', COMPLETE: 'DONE TODAY', INVALID: 'INVALID', INACTIVE: 'INACTIVE', NO_TIME_IN: 'NO TIME IN' }[r.result] || 'ERROR');
+    $('#stampTime').textContent = ok ? to12(r.time) : '✕';
+    tc.style.setProperty('--flash', ok ? 'oklch(0.85 0.12 130 / .6)' : 'oklch(0.80 0.12 30 / .6)');
+    tc.classList.remove('flash'); void tc.offsetWidth; tc.classList.add('flash');
+    beep(ok);
+    SCAN.log.unshift({ name: r.student ? pretty(r.student.name) : 'Unknown code', what: ok ? $('#stampTop').textContent + ' ' + to12(r.time) : $('#stampTop').textContent, ok });
+    SCAN.log = SCAN.log.slice(0, 8);
+    $('#slog').innerHTML = SCAN.log.map(l => `<div class="it"><b>${esc(l.name)}</b><span class="${l.ok ? '' : 'muted'}">${esc(l.what)}</span></div>`).join('');
+  };
+
+  const run = async () => {
+    if (SCAN.busy || !SCAN.queue.length) return;
+    SCAN.busy = true;
+    const job = SCAN.queue.shift();
+    $('#tcNote').textContent = 'Recording…';
+    try {
+      const r = job.manual ? await api('manualEntry', job.manual) : await api('scan', { code: job.code });
+      showResult(r, r.result === 'TIME_IN' || r.result === 'TIME_OUT');
+    } catch (e) {
+      showResult({ result: 'ERROR', message: e.message }, false);
+    } finally { SCAN.busy = false; run(); }
+  };
+  const submit = (code) => {
+    code = String(code || '').trim();
+    if (!code) return;
+    const now = Date.now();
+    if (code === SCAN.last && now - SCAN.lastAt < 5000) return; // same card still in front of the camera
+    SCAN.last = code; SCAN.lastAt = now;
+    SCAN.queue.push({ code }); run();
+  };
+
+  // camera
+  Html5Qrcode.getCameras().then(cs => { $('#camSel').innerHTML = '<option value="">Back camera (default)</option>' + cs.map(c => `<option value="${esc(c.id)}">${esc(c.label || 'Camera')}</option>`).join(''); }).catch(() => { });
+  $('#startCam').onclick = async () => {
+    try {
+      await stopCamera();
+      CAM = new Html5Qrcode('reader', { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE], verbose: false });
+      const sel = $('#camSel').value;
+      await CAM.start(sel ? { deviceId: { exact: sel } } : { facingMode: 'environment' }, { fps: 12, qrbox: (w, h) => { const m = Math.floor(Math.min(w, h) * .68); return { width: m, height: m }; } }, txt => submit(txt), () => { });
+      $('#idle').classList.add('hidden'); $('#stopCam').classList.remove('hidden');
+    } catch (e) {
+      toast('Camera could not start: ' + (e.message || e) + '. Allow camera access in the browser and use the HTTPS link.', true);
+    }
+  };
+  $('#stopCam').onclick = async () => { await stopCamera(); $('#idle').classList.remove('hidden'); $('#stopCam').classList.add('hidden'); };
+
+  // keyboard-wedge scanners type the code then press Enter
+  $('#wedge').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); submit(e.target.value); e.target.value = ''; } };
+
+  if (staff) {
+    getStudents().then(st => { $('#manList').innerHTML = st.filter(s => s.status === 'Active').map(s => `<option value="${esc(s.id)} · ${esc(s.name)}">`).join(''); }).catch(() => { });
+    $$('[data-man]').forEach(b => b.onclick = () => {
+      const id = $('#manQ').value.split('·')[0].trim();
+      if (!id) return toast('Pick a student first', true);
+      SCAN.queue.push({ manual: { studentId: id, event: b.dataset.man, remarks: $('#manWhy').value } }); run();
+      $('#manQ').value = '';
+    });
+  }
+};
+
+/* =====================================================================
+   6. TIME IN / TIME OUT MONITOR
+   ===================================================================== */
+VIEWS.monitor = async (v) => {
+  let tab = 'all', data = null;
+  v.innerHTML = head('Time In / Time Out Monitor', 'Live view of today. Updates every 10 seconds.', `<span class="muted small" id="upd"></span>`) + `
+  <div class="filters"><div class="seg" id="tabs">
+    <button data-t="all" class="on" type="button">All</button><button data-t="inside" type="button">Still inside</button><button data-t="out" type="button">Timed out</button><button data-t="late" type="button">Late</button><button data-t="absent" type="button">Not yet in</button>
+  </div><select class="in" id="grp">${groupOptions()}</select><input class="in" id="q" placeholder="Search name"></div>
+  <div class="tablewrap"><table><thead><tr><th>Student</th><th>Grade · Section</th><th>Time In</th><th>Time Out</th><th>Status</th><th>Parent notified</th><th>Remarks</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+  const draw = () => {
+    if (!data) return;
+    const g = splitGroup($('#grp').value), q = $('#q').value.trim().toUpperCase();
+    const f = r => (!g.grade || (r.grade === g.grade && r.section === g.section)) && (!q || r.name.toUpperCase().includes(q));
+    const counts = { all: data.records.length, inside: data.inside, out: data.out, late: data.late, absent: data.absent };
+    $$('#tabs button').forEach(b => b.innerHTML = `${b.textContent.replace(/ \(\d+\)$/, '')} (${counts[b.dataset.t]})`);
+    let rows;
+    if (tab === 'absent') {
+      rows = data.absentList.filter(f).map(s => `<tr><td><b>${esc(s.name)}</b><div class="id">${esc(s.id)}</div></td><td>${esc(s.grade)} · ${esc(s.section)}</td><td>–</td><td>–</td><td>${pill('Absent')}</td><td colspan="2" class="muted small">${s.contact ? esc(s.contact) : 'No parent mobile'}</td><td class="act"><button class="btn sm" data-h="${esc(s.id)}" type="button">History</button></td></tr>`);
+    } else {
+      rows = data.records.filter(r => f(r) && (tab === 'all' || (tab === 'inside' && !r.timeOut) || (tab === 'out' && r.timeOut) || (tab === 'late' && r.status === 'Late')))
+        .map(r => `<tr><td><b>${esc(r.name)}</b><div class="id">${esc(r.studentId)}</div></td><td>${esc(r.grade)} · ${esc(r.section)}</td><td class="mono">${to12(r.timeIn)}</td><td class="mono">${r.timeOut ? to12(r.timeOut) : pill('Inside')}</td><td>${pill(r.status)}</td>
+        <td><div class="small">IN ${notifPill(r.inNotified)}</div>${r.timeOut ? `<div class="small" style="margin-top:4px">OUT ${notifPill(r.outNotified)}</div>` : ''}</td><td class="small muted">${esc(r.remarks)}</td>
+        <td class="act">${S.user.role === 'Admin' ? `<button class="btn sm" data-e="${esc(r.recordId)}" type="button">Edit</button>` : ''}</td></tr>`);
+    }
+    $('#tb').innerHTML = rows.join('') || '<tr><td colspan="8" class="empty">Nothing here</td></tr>';
+  };
+  const load = async () => { try { data = await api('day', { date: S.today }); $('#upd').textContent = 'Updated ' + to12(data.serverTime); draw(); } catch (e) { toast(e.message, true); } };
+  $('#tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; tab = b.dataset.t; $$('#tabs button').forEach(x => x.classList.toggle('on', x === b)); draw(); };
+  $('#grp').oninput = draw; $('#q').oninput = draw;
+  $('#tb').onclick = e => {
+    const h = e.target.closest('[data-h]'); if (h) return openHistory(h.dataset.h);
+    const ed = e.target.closest('[data-e]'); if (ed) editRecord(data.records.find(r => r.recordId === ed.dataset.e), load);
+  };
+  await load();
+  every(10000, load);
+};
+
+function editRecord(r, after) {
+  const hm = t => (t || '').slice(0, 5);
+  modal('Correct attendance', `<p class="muted">${esc(r.name)} · ${esc(longDate(r.date))}</p>
+    <div class="grid g3"><label class="f"><span>Time In</span><input class="in" type="time" id="ti" value="${hm(r.timeIn)}"></label>
+    <label class="f"><span>Time Out</span><input class="in" type="time" id="to" value="${hm(r.timeOut)}"></label>
+    <label class="f"><span>Status</span><select class="in" id="ts"><option ${r.status === 'Present' ? 'selected' : ''}>Present</option><option ${r.status === 'Late' ? 'selected' : ''}>Late</option></select></label></div>
+    <p class="muted small">Your username is written to Remarks for accountability.</p>
+    <div class="row" style="justify-content:space-between;margin-top:14px"><button class="btn primary" id="es" type="button">Save</button><button class="btn danger" id="ed" type="button">Delete record</button></div>`, (el, close) => {
+    $('#es', el).onclick = () => busy($('#es', el), async () => { await api('editAttendance', { recordId: r.recordId, timeIn: $('#ti', el).value, timeOut: $('#to', el).value, status: $('#ts', el).value }); toast('Record updated'); close(); after && after(); });
+    $('#ed', el).onclick = () => { if (confirm('Delete this attendance record? The student will show as absent for this day.')) busy($('#ed', el), async () => { await api('editAttendance', { recordId: r.recordId, remove: true }); toast('Record deleted'); close(); after && after(); }); };
+  });
+}
+
+/* =====================================================================
+   7. PARENT NOTIFICATION MANAGEMENT
+   ===================================================================== */
+VIEWS.notifications = async (v) => {
+  const admin = S.user.role === 'Admin';
+  let filter = '';
+  const load = async () => {
+    const d = await api('notifLog', { result: filter, limit: 400 });
+    const sample = { Greeting: 'Good morning', StudentName: 'Jharain M. Aydalla', Subject: S.settings.subject, Time: '7:24 AM', Date: longDate(localYmd()).replace(/^\w+, /, ''), School: S.settings.school };
+    const fill = t => String(t).replace(/\{(\w+)\}/g, (m, k) => sample[k] ?? m);
+    v.innerHTML = head('Parent Notifications', 'Every TIME IN and TIME OUT is sent to the parent by email and SMS.', admin ? `<button class="btn" type="button" onclick="go('settings')">Change settings</button>` : '') + `
+    <div class="grid g3" style="margin-bottom:16px">
+      <div class="card"><h3>Email</h3><div class="row">${badge(d.emailOn, d.emailOn === 'ON' ? 'Sent' : 'Inactive')}<span class="muted small">${d.emailQuota} emails left today</span></div></div>
+      <div class="card"><h3>SMS</h3><div class="row">${badge(d.smsOn, d.smsOn === 'ON' ? 'Sent' : 'Inactive')}<span class="muted small">via ${esc(d.smsProvider)}</span></div></div>
+      <div class="card"><h3>Failed lately</h3><div class="row"><b style="font-size:26px;font-family:var(--font-display)">${d.rows.filter(r => r.result === 'Failed').length}</b><button class="btn sm" id="onlyFail" type="button">${filter ? 'Show all' : 'Show failed'}</button></div></div>
+    </div>
+    <div class="grid g2" style="margin-bottom:16px">
+      <div class="card"><h3>TIME IN message</h3><p style="margin:0">${esc(fill(d.templates.tplIn))}</p><p class="muted small">${fill(d.templates.tplIn).length} characters · ${Math.ceil(fill(d.templates.tplIn).length / 160)} SMS credit(s)</p></div>
+      <div class="card"><h3>TIME OUT message</h3><p style="margin:0">${esc(fill(d.templates.tplOut).replace('Good morning', 'Good afternoon').replace('7:24 AM', '4:30 PM'))}</p><p class="muted small">${fill(d.templates.tplOut).length} characters · ${Math.ceil(fill(d.templates.tplOut).length / 160)} SMS credit(s)</p></div>
+    </div>
+    ${admin ? `<div class="card" style="margin-bottom:16px"><h3>Send a sample</h3><div class="row"><select class="in" id="tch" style="width:auto"><option>Email</option><option>SMS</option></select><input class="in" id="tto" placeholder="your email or 09XXXXXXXXX" style="max-width:300px"><button class="btn primary" id="tgo" type="button">Send sample</button></div></div>` : ''}
+    <div class="tablewrap"><table><thead><tr><th>When</th><th>Student</th><th>Event</th><th>Channel</th><th>Recipient</th><th>Result</th><th>Details</th><th></th></tr></thead><tbody>
+    ${d.rows.map(r => `<tr><td class="mono small">${esc(r.ts)}</td><td>${esc(r.studentName)}</td><td>${esc(r.event)}</td><td>${esc(r.channel)}</td><td class="small">${esc(r.recipient)}</td><td>${pill(r.result)}</td><td class="small muted" style="max-width:280px">${esc(r.details)}</td>
+      <td class="act">${r.result === 'Failed' && r.studentId !== 'TEST' ? `<button class="btn sm" data-rs="${esc(r.ts.slice(0, 10) + '_' + r.studentId)}" data-ev="${r.event === 'TIME OUT' ? 'OUT' : 'IN'}" data-ch="${esc(r.channel)}" type="button">Resend</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">No notifications yet</td></tr>'}
+    </tbody></table></div>`;
+    $('#onlyFail').onclick = () => { filter = filter ? '' : 'Failed'; load(); };
+    $$('[data-rs]').forEach(b => b.onclick = () => busy(b, async () => { const n = await api('resendNotification', { recordId: b.dataset.rs, event: b.dataset.ev, channel: b.dataset.ch }); toast(n.summary); load(); }));
+    if (admin) $('#tgo').onclick = () => busy($('#tgo'), async () => { await api('testNotification', { channel: $('#tch').value, to: $('#tto').value.trim() }); toast('Sample sent'); load(); });
+  };
+  try { await load(); } catch (e) { v.innerHTML = `<div class="callout bad">${esc(e.message)}</div>`; }
+};
+
+/* =====================================================================
+   8. ATTENDANCE HISTORY
+   ===================================================================== */
+VIEWS.history = (v) => {
+  const t = S.today || localYmd();
+  const weekAgo = (() => { const [y, m, d] = t.split('-').map(Number); return localYmd(new Date(y, m - 1, d - 6)); })();
+  v.innerHTML = head('Attendance History', 'Absences are counted on days when class was held (at least one scan).', `<button class="btn" id="xls" type="button">Export to Excel</button>`) + `
+  <div class="filters">
+    <label class="f"><span>From</span><input class="in" type="date" id="hf" value="${weekAgo}"></label>
+    <label class="f"><span>To</span><input class="in" type="date" id="ht" value="${t}"></label>
+    <label class="f"><span>Grade · Section</span><select class="in" id="hg">${groupOptions()}</select></label>
+    <label class="f"><span>Status</span><select class="in" id="hs"><option value="">All</option><option>Present</option><option>Late</option><option>Absent</option></select></label>
+    <label class="f"><span>Student</span><input class="in" id="hn" placeholder="Name or ID"></label>
+    <button class="btn primary" id="hgo" type="button">Show</button>
+  </div>
+  <div id="hsum" class="muted small" style="margin-bottom:10px"></div>
+  <div class="tablewrap"><table><thead><tr><th>Date</th><th>Student</th><th>Grade · Section</th><th>Time In</th><th>Time Out</th><th>Status</th><th>Remarks</th><th></th></tr></thead><tbody id="tb"><tr><td colspan="8" class="empty"><span class="spin"></span></td></tr></tbody></table></div>`;
+  let last = null;
+  const load = () => busy($('#hgo'), async () => {
+    const g = splitGroup($('#hg').value);
+    const d = await api('attendance', { from: $('#hf').value, to: $('#ht').value, grade: g.grade, section: g.section, status: $('#hs').value, name: $('#hn').value.trim() });
+    last = d;
+    const c = k => d.rows.filter(r => r.status === k).length;
+    $('#hsum').textContent = `${d.total} row(s) · ${d.classDays} class day(s) · Present ${c('Present')} · Late ${c('Late')} · Absent ${c('Absent')}${d.truncated ? ' · showing first 3000' : ''}`;
+    $('#tb').innerHTML = d.rows.map(r => `<tr><td class="mono small">${esc(r.date)}<div class="muted">${dayName(r.date)}</div></td><td><b>${esc(r.name)}</b><div class="id">${esc(r.studentId)}</div></td><td>${esc(r.grade)} · ${esc(r.section)}</td><td class="mono">${to12(r.timeIn) || '–'}</td><td class="mono">${to12(r.timeOut) || '–'}</td><td>${pill(r.status)}</td><td class="small muted">${esc(r.remarks)}</td><td class="act"><button class="btn sm" data-h="${esc(r.studentId)}" type="button">Student</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">No records for these filters</td></tr>';
+  });
+  $('#hgo').onclick = load;
+  $('#hn').onkeydown = e => { if (e.key === 'Enter') load(); };
+  $('#tb').onclick = e => { const b = e.target.closest('[data-h]'); if (b) openHistory(b.dataset.h); };
+  $('#xls').onclick = () => { if (!last) return; exportXlsx(`Attendance_${last.from}_to_${last.to}`, [{ name: 'Attendance', rows: [['Date', 'Student ID', 'Full Name', 'Grade Level', 'Section', 'Time In', 'Time Out', 'Status', 'Time In Notification', 'Time Out Notification', 'Remarks'], ...last.rows.map(r => [r.date, r.studentId, r.name, r.grade, r.section, to12(r.timeIn), to12(r.timeOut), r.status, r.inNotified, r.outNotified, r.remarks])] }]); };
+  load();
+};
+
+async function openHistory(id) {
+  const close = modal('Student history', '<div class="empty"><span class="spin"></span></div>');
+  try {
+    const d = await api('studentHistory', { id });
+    const s = d.student, m = d.summary;
+    const box = close.el;
+    box.innerHTML = `
+      <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+        <div><h2>${esc(pretty(s.name))}</h2><div class="muted">${esc(s.grade)} · ${esc(s.section)} · <span class="mono">${esc(s.id)}</span></div>
+        <div class="small muted" style="margin-top:6px">Parent: ${esc(s.guardian || '–')} · ${esc(s.contact || 'no mobile')} · ${esc(s.email || 'no email')}</div></div>
+        <div style="text-align:right"><div style="font-family:var(--font-display);font-size:40px;font-weight:700;line-height:1">${m.rate}%</div><div class="muted small">attendance rate</div></div>
+      </div>
+      <div class="row" style="gap:8px;margin-bottom:14px">${pill('Present')} ${m.present} ${pill('Late')} ${m.late} ${pill('Absent')} ${m.absent} <span class="muted small">of ${m.days} class days</span></div>
+      <div class="tablewrap" style="max-height:46vh"><table><thead><tr><th>Date</th><th>Time In</th><th>Time Out</th><th>Status</th><th>Remarks</th></tr></thead><tbody>
+      ${d.rows.map(r => `<tr><td class="mono small">${esc(r.date)} <span class="muted">${dayName(r.date)}</span></td><td class="mono">${to12(r.timeIn) || '–'}</td><td class="mono">${to12(r.timeOut) || '–'}</td><td>${pill(r.status)}</td><td class="small muted">${esc(r.remarks)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No class days yet</td></tr>'}
+      </tbody></table></div>
+      <div class="row" style="margin-top:14px"><button class="btn" id="hx" type="button">Export to Excel</button><button class="btn" id="hq" type="button">Show QR card</button></div>`;
+    $('#hx', box).onclick = () => exportXlsx(`History_${s.id}`, [{ name: 'History', rows: [['Student ID', s.id], ['Name', s.name], ['Grade · Section', s.grade + ' · ' + s.section], ['Attendance rate', m.rate + '%'], [], ['Date', 'Time In', 'Time Out', 'Status', 'Remarks'], ...d.rows.map(r => [r.date, to12(r.timeIn), to12(r.timeOut), r.status, r.remarks])] }]);
+    $('#hq', box).onclick = () => { close(); openCard(s); };
+  } catch (e) { close(); toast(e.message, true); }
+}
+
+/* =====================================================================
+   9. ATTENDANCE REPORTS
+   ===================================================================== */
+VIEWS.reports = (v) => {
+  let type = 'daily', rep = null;
+  v.innerHTML = head('Attendance Reports', 'Daily, weekly (Mon–Sun) and monthly summaries by student.', `<button class="btn" id="rx" type="button">Export to Excel</button><button class="btn" id="rp" type="button">Print</button>`) + `
+  <div class="filters">
+    <div class="seg" id="rt"><button data-t="daily" class="on" type="button">Daily</button><button data-t="weekly" type="button">Weekly</button><button data-t="monthly" type="button">Monthly</button></div>
+    <input class="in" type="date" id="rd" value="${S.today || localYmd()}">
+    <select class="in" id="rg">${groupOptions()}</select>
+    <button class="btn primary" id="rgo" type="button">Generate</button>
+  </div><div id="rb"></div>`;
+  const mark = { P: '<span style="color:var(--present);font-weight:700">P</span>', L: '<span style="color:var(--late-ink);font-weight:700">L</span>', A: '<span style="color:var(--absent);font-weight:700">A</span>' };
+  const load = () => busy($('#rgo'), async () => {
+    const g = splitGroup($('#rg').value);
+    rep = await api('report', { type, date: $('#rd').value, grade: g.grade, section: g.section });
+    const t = rep.totals, days = rep.classDays;
+    const showDays = days.length > 1 && days.length <= 31;
+    $('#rb').innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px">
+        <div class="card"><div class="muted small">Period</div><b>${esc(shortDate(rep.from))}${rep.from !== rep.to ? ' – ' + esc(shortDate(rep.to)) : ''}</b></div>
+        <div class="card"><div class="muted small">Class days</div><b style="font-size:24px">${days.length}</b></div>
+        <div class="card"><div class="muted small">Attendance rate</div><b style="font-size:24px">${t.rate}%</b></div>
+        <div class="card"><div class="muted small">Present / Late / Absent</div><b style="font-size:20px">${t.present} / ${t.late} / ${t.absent}</b></div>
+      </div>
+      ${days.length ? '' : '<div class="callout">No class was held (no scans) in this period.</div>'}
+      <div class="tablewrap"><table><thead><tr><th>Student</th><th>Grade · Section</th>${showDays ? days.map(d => `<th title="${d}">${shortDate(d)}</th>`).join('') : ''}<th>P</th><th>L</th><th>A</th><th>Rate</th></tr></thead><tbody>
+      ${rep.perStudent.map(s => `<tr><td><b>${esc(s.name)}</b><div class="id">${esc(s.id)}</div></td><td>${esc(s.grade)} · ${esc(s.section)}</td>${showDays ? days.map(d => `<td style="text-align:center">${mark[s.marks[d]] || '<span class="muted">·</span>'}</td>`).join('') : ''}<td>${s.present}</td><td>${s.late}</td><td>${s.absent}</td><td class="mono">${s.rate}%</td></tr>`).join('') || '<tr><td colspan="20" class="empty">No students</td></tr>'}
+      </tbody></table></div>`;
+  });
+  $('#rt').onclick = e => { const b = e.target.closest('button'); if (!b) return; type = b.dataset.t; $$('#rt button').forEach(x => x.classList.toggle('on', x === b)); load(); };
+  $('#rgo').onclick = load;
+  $('#rx').onclick = () => {
+    if (!rep) return;
+    const days = rep.classDays;
+    const head1 = [[rep.school], [`${rep.subject} · ${type.toUpperCase()} ATTENDANCE REPORT`], [`Period: ${rep.from} to ${rep.to}`, '', `Generated: ${rep.generated}`], []];
+    exportXlsx(`${type}_report_${rep.from}`, [
+      { name: 'Summary', rows: [...head1, ['Student ID', 'Full Name', 'Sex', 'Grade Level', 'Section', 'Class Days', 'Present', 'Late', 'Absent', 'Attendance Rate %'], ...rep.perStudent.map(s => [s.id, s.name, s.sex, s.grade, s.section, s.days, s.present, s.late, s.absent, s.rate]), [], ['TOTAL', '', '', '', '', '', rep.totals.present, rep.totals.late, rep.totals.absent, rep.totals.rate]] },
+      { name: 'Daily Marks', rows: [...head1, ['Student ID', 'Full Name', ...days], ...rep.perStudent.map(s => [s.id, s.name, ...days.map(d => s.marks[d] || '')]), [], ['P = Present, L = Late, A = Absent']] },
+      { name: 'Per Day', rows: [['Date', 'Present', 'Late', 'Absent'], ...rep.perDay.map(d => [d.date, d.present, d.late, d.absent])] }
+    ]);
+  };
+  $('#rp').onclick = () => {
+    if (!rep) return;
+    $('#printzone').innerHTML = `<div class="preport"><h2>${esc(rep.school)}</h2><p>${esc(rep.subject)} · ${type.toUpperCase()} ATTENDANCE REPORT · ${esc(rep.from)} to ${esc(rep.to)} · Rate ${rep.totals.rate}%</p>${$('#rb .tablewrap').innerHTML}<p style="margin-top:30px">Prepared by: ______________________ &nbsp;&nbsp; Noted by: ______________________</p></div>`;
+    setTimeout(() => window.print(), 200);
+  };
+  load();
+};
+
+/* ---------- Excel export (SheetJS, runs in the browser) ---------- */
+function exportXlsx(name, sheets) {
+  if (!window.XLSX) return toast('Excel library did not load. Check internet.', true);
+  const wb = XLSX.utils.book_new();
+  sheets.forEach(s => {
+    const ws = XLSX.utils.aoa_to_sheet(s.rows);
+    const widths = []; s.rows.forEach(r => r.forEach((c, i) => { widths[i] = Math.min(45, Math.max(widths[i] || 8, String(c ?? '').length + 2)); }));
+    ws['!cols'] = widths.map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, s.name.slice(0, 31));
+  });
+  XLSX.writeFile(wb, name.replace(/[^\w.-]+/g, '_') + '.xlsx');
+  toast('Excel file downloaded');
+}
+
+/* =====================================================================
+   10. SETTINGS & USERS (Admin)
+   ===================================================================== */
+VIEWS.settings = async (v) => {
+  let d, users;
+  try { [d, users] = await Promise.all([api('getSettings'), api('listUsers')]); } catch (e) { v.innerHTML = `<div class="callout bad">${esc(e.message)}</div>`; return; }
+  const s = d.settings, sec = d.secrets;
+  const f = (k, label, type = 'text', extra = '') => `<label class="f"><span>${label}</span><input class="in" name="${k}" type="${type}" value="${esc(s[k])}" ${extra}></label>`;
+  const onoff = k => `<select class="in" name="${k}"><option ${s[k] === 'ON' ? 'selected' : ''}>ON</option><option ${s[k] !== 'ON' ? 'selected' : ''}>OFF</option></select>`;
+  const secret = (k, label) => `<label class="f"><span>${label}</span><input class="in mono" data-secret="${k}" value="${esc(sec[k])}" placeholder="not set" autocomplete="off"></label>`;
+  v.innerHTML = head('Settings & Users', 'Only Admins see this page.') + `
+  <div class="grid g2" id="sf" style="align-items:start">
+    <div class="card"><h3>School & class rules</h3><div class="grid g2">
+      ${f('school', 'School name')}${f('schoolShort', 'School code (for new IDs)')}
+      ${f('subject', 'Subject')}${f('classStart', 'Class start', 'time')}
+      ${f('lateAfter', 'Late after (minutes)', 'number', 'min="0" max="240"')}${f('classEnd', 'Class end', 'time')}
+      ${f('minOut', 'Minutes before TIME OUT is allowed', 'number', 'min="0" max="600"')}
+    </div></div>
+    <div class="card"><h3>Notifications</h3><div class="grid g2">
+      <label class="f"><span>Email to parents</span>${onoff('emailOn')}</label>
+      <label class="f"><span>SMS to parents</span>${onoff('smsOn')}</label>
+      <label class="f"><span>SMS provider</span><select class="in" name="smsProvider" id="prov">${['SEMAPHORE', 'SMSGATE', 'TWILIO'].map(p => `<option ${s.smsProvider === p ? 'selected' : ''} value="${p}">${{ SEMAPHORE: 'Semaphore (PH)', SMSGATE: 'SMS Gate (your Android phone)', TWILIO: 'Twilio' }[p]}</option>`).join('')}</select></label>
+      <div data-p="SEMAPHORE">${f('smsSender', 'Semaphore sender name')}</div>
+    </div>
+    <div class="grid g2" style="margin-top:12px">
+      <div data-p="SEMAPHORE">${secret('SEMAPHORE_API_KEY', 'Semaphore API key')}</div>
+      <div data-p="SMSGATE">${secret('SMSGATE_USERNAME', 'SMS Gate username')}</div><div data-p="SMSGATE">${secret('SMSGATE_PASSWORD', 'SMS Gate password')}</div>
+      <div data-p="TWILIO">${secret('TWILIO_ACCOUNT_SID', 'Twilio Account SID')}</div><div data-p="TWILIO">${secret('TWILIO_AUTH_TOKEN', 'Twilio Auth Token')}</div><div data-p="TWILIO">${secret('TWILIO_FROM_NUMBER', 'Twilio From number (+1…)')}</div>
+    </div>
+    <p class="muted small">Keys are stored in the script's private properties, never in the sheet. Emails left today: ${d.emailQuota}.</p></div>
+    <div class="card" style="grid-column:1/-1"><h3>Message templates</h3><div class="grid g2">
+      <label class="f"><span>TIME IN message</span><textarea class="in" name="tplIn">${esc(s.tplIn)}</textarea></label>
+      <label class="f"><span>TIME OUT message</span><textarea class="in" name="tplOut">${esc(s.tplOut)}</textarea></label>
+      ${f('emailSubject', 'Email subject')}
+      <p class="muted small">Placeholders: {Greeting} {StudentName} {Subject} {Time} {Date} {School} {Grade} {Section} {GuardianName}. Don't start a message with the word "TEST" (Semaphore drops those).</p>
+    </div></div>
+  </div>
+  <div class="row" style="margin:16px 0 30px"><button class="btn primary lg" id="ss" type="button">Save settings</button></div>
+  <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:12px"><h3 style="margin:0">User accounts</h3><button class="btn" id="nu" type="button">+ Add user</button></div>
+    <p class="muted small">Admin = everything · Teacher = register, scan, monitor, reports · Scanner = scanning screen only (for a door kiosk / student officer).</p>
+    <div class="tablewrap"><table><thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Active</th><th>Last login</th><th></th></tr></thead><tbody id="ub"></tbody></table></div></div>`;
+  const prov = () => $$('[data-p]').forEach(el => el.classList.toggle('hidden', el.dataset.p !== $('#prov').value));
+  $('#prov').oninput = prov; prov();
+  $('#ss').onclick = () => busy($('#ss'), async () => {
+    const settings = Object.fromEntries($$('#sf [name]').map(i => [i.name, i.value]));
+    const secrets = Object.fromEntries($$('#sf [data-secret]').map(i => [i.dataset.secret, i.value.trim()]));
+    await api('saveSettings', { settings, secrets });
+    const b = await api('bootstrap'); S.settings = b.settings;
+    toast('Settings saved');
+  });
+  const drawUsers = () => {
+    $('#ub').innerHTML = users.map(u => `<tr><td class="mono">${esc(u.username)}</td><td>${esc(u.fullName)}</td><td>${esc(u.role)}</td><td>${badge(u.active, u.active === 'Yes' ? 'Sent' : 'Inactive')}</td><td class="small muted">${esc(u.lastLogin)}</td><td class="act"><button class="btn sm" data-u="${esc(u.username)}" type="button">Edit</button></td></tr>`).join('');
+  };
+  const userForm = (u = {}) => modal(u.username ? 'Edit user' : 'Add user', `<div class="grid g2" id="uf">
+      <label class="f"><span>Username</span><input class="in mono" name="username" value="${esc(u.username)}" ${u.username ? 'readonly' : ''}></label>
+      <label class="f"><span>Full name</span><input class="in" name="fullName" value="${esc(u.fullName)}"></label>
+      <label class="f"><span>Role</span><select class="in" name="role">${['Teacher', 'Admin', 'Scanner'].map(r => `<option ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+      <label class="f"><span>Active</span><select class="in" name="active"><option ${u.active !== 'No' ? 'selected' : ''}>Yes</option><option ${u.active === 'No' ? 'selected' : ''}>No</option></select></label>
+      <label class="f"><span>${u.username ? 'New PIN (leave blank to keep)' : 'PIN (4–8 digits)'}</span><input class="in mono" name="pin" inputmode="numeric" maxlength="8"></label>
+    </div><div class="row" style="margin-top:16px"><button class="btn primary" id="us" type="button">Save user</button></div>`, (el, close) => {
+    $('#us', el).onclick = () => busy($('#us', el), async () => { users = await api('saveUser', readForm($('#uf', el))); drawUsers(); toast('User saved'); close(); });
+  });
+  $('#nu').onclick = () => userForm();
+  $('#ub').onclick = e => { const b = e.target.closest('[data-u]'); if (b) userForm(users.find(u => u.username === b.dataset.u)); };
+  drawUsers();
+};
+
+/* ---------- start ---------- */
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (S.user && h !== S.view && VIEWS[h]) go(h); });
+boot();
+
+</script>
+</body>
+</html>
